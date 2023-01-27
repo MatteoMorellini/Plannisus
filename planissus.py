@@ -9,7 +9,6 @@ listHerd = [] #listHerd=[istance1, istance2 etc...]
 idHerds = []
 listPride = []
 idPrides = []
-
 rgbConfiguration = False
 
 yearLength = 10
@@ -73,7 +72,7 @@ class Erbast(Animal):
     if idPride in idPrides:
       listPride[idPride].memberList.append(self)
     else:
-      idPride = max(len(listPride), 0)
+      idPride = idPrides[-1]+1 if len(idPrides)>0 else 0
       idPrides.append(idPride)
       listPride.append(Pride(idPride, [self], self.x, self.y))
   def grazing(self):
@@ -88,7 +87,13 @@ class Erbast(Animal):
   def generateOffspring(self, idPride, livingSpecies):
     sizePride = len(listPride[idPride].memberList)/livingSpecies
     listPride[idPride].memberList.remove(self)
-    successors = math.ceil(2*(1-sizePride)) if livingSpecies > 20 else 2
+    #si potrebbe pensare di fare questo in base alla popolazione nei 9 quadrati con centro
+    #quello del pride che stiamo esaminando, se la densità è troppo alta allora meno figli
+    if livingSpecies > 200:
+      successors = 1
+    elif livingSpecies > 50:
+      successors = round(2*(1-sizePride))
+    else: successors = 2
     for successor in range(0,successors):
       energy, socialAttitude, lifetime = self.generateOffspringProperties()
       Erbast(self.x, self.y, energy, lifetime, socialAttitude, idPride)
@@ -100,7 +105,7 @@ class Carviz(Animal):
     if idHerd in idHerds: 
       listHerd[idHerd].memberList.append(self)
     else:
-      idHerd = max(len(listHerd),0)
+      idHerd = idHerds[-1]+1 if len(idHerds)>0 else 0
       idHerds.append(idHerd)
       listHerd.append(Herd(idHerd, [self], self.x, self.y))
   def aging(self, idHerd, livingSpecies):
@@ -111,21 +116,27 @@ class Carviz(Animal):
   def generateOffspring(self, idHerd, livingSpecies):
     sizeHerd = len(listHerd[idHerd].memberList)/livingSpecies
     listHerd[idHerd].memberList.remove(self)
-    successors = math.ceil(2*(1-sizeHerd)) if livingSpecies > 20 else 2
+    if livingSpecies > 100:
+      successors = 1
+    elif livingSpecies > 20:
+      successors = round(2*(1-sizeHerd))
+    else: successors = 2
+    print(successors, livingSpecies)
+
     for successor in range(0,successors):
       energy, socialAttitude, lifetime = self.generateOffspringProperties()
       Carviz(self.x, self.y, energy, lifetime, socialAttitude, idHerd)
 
 def relativePosition(pos):
   relativePosition = pos / ((600/sizeCell)-2) #perchè se ci sono 10 celle, 2 sono i bordi quindi a noi interessano 8
-  rel = 0.7 - (relativePosition * 0.7)
+  rel = 0.4 - (relativePosition * 0.4)
   return rel
 
 def relativeMovement(rel):
   randomNumber = random.random()
   if(randomNumber <= 0.3):
     addPos = 0
-  elif(randomNumber > 0.3 and randomNumber < 0.3+rel):
+  elif(randomNumber > 0.3 and randomNumber < 0.45+rel):
     addPos = 1
   else:
     addPos = -1
@@ -164,6 +175,7 @@ class Herd(Group):
   def deadGroup(self):
     listHerd[self.id] = None
     cells[self.y][self.x]['Herds'].remove(self.id)
+    idHerds.remove(self.id)
 
   def movedType(self, xMov, yMov):
     cells[self.y][self.x]['Herds'].remove(self.id)
@@ -171,7 +183,7 @@ class Herd(Group):
   
   def groupInteractions(self):
     for member in self.memberList:
-      threshold = np.random.normal(40,10)
+      threshold = np.random.normal(35,5)
       if member.socialAttitude < threshold:
         idHerd= max(len(listHerd), 0)
         idHerds.append(idHerd)
@@ -221,18 +233,40 @@ class Herd(Group):
     self.lastVisitedCell = [self.y, self.x]
     self.move(yMov, xMov)
     
-  
-
 class Pride(Group):
   def __init__(self, *args):
     super().__init__(*args)
     cells[self.y][self.x]['Prides'].append(self.id)
+    self.moved = False
 
   def deadGroup(self):
     listPride[self.id] = None
     cells[self.y][self.x]['Prides'].remove(self.id)
+    idPrides.remove(self.id)
+
+  def groupInteractions(self):
+    subset = list(cells[self.y-1:self.y+2, self.x-1:self.x+2].flat)
+    subset.pop(4)
+    groundNearby = [cell for cell in subset if cell.get('type') == 'ground']    
+    if len(groundNearby)>1:
+      for member in self.memberList:
+        threshold = np.random.normal(35,5)
+        if member.socialAttitude < threshold:
+          idPride= max(len(listPride), 0)
+          idPrides.append(idPride)
+          newX = random.randint(-1,1)
+          newY = random.randint(-1,1)
+          while(cells[member.y+newY][member.x+newX] not in groundNearby):
+            newX = random.randint(-1,1)
+            newY = random.randint(-1,1)
+          listPride.append(Pride(idPride, [member], (member.x+newX), (member.y+newY)))
+          self.memberList.remove(member)
+          listPride[-1].moved = True
 
   def decideStrategy(self):
+    if self.moved: 
+      self.moved=False
+      return
     shouldMove = False
     enemyNearby = False
     sight = self.memberList[0].sight
@@ -256,13 +290,15 @@ class Pride(Group):
           if density/100*threshold > originalDensity and density > maxDensity:
             maxDensity = density
             xMov = x-1
-            yMov = y-1  
+            yMov = y-1    
       else:continue
       break
     if(xMov != 0 or yMov != 0): shouldMove = True
     if(not shouldMove):
       self.graze()
     else:
+      if len(self.memberList)>1: self.groupInteractions()
+      # da cambiare il funzionamento perchè poi il nuovo gruppo andrà comunque nella stessa cella
       self.move(yMov, xMov)
   def graze(self):
     self.memberList.sort(key=lambda x: x.energy)
@@ -314,10 +350,11 @@ def hunt():
           else:
             listHerd[idHerd].feed(newEnergyPrey[i]-(stdPride-20))
         listPride[idPride] = None
+        idPrides.remove(idPride)
         cells[row][col]['Prides'].remove(idPride)
           
           #due casi: i predatori sono più delle prede o le prede sono più dei predatori
-          #nel primo caso ordino in ordine decrescente per energia e sommo 
+          #nel primo caso ordino in ordine decrescente per energia e sommo
         
 def createGrid(numCells):
   grid = np.array([[{"type": "water"} for x in range(numCells)] for y in range(numCells)])
@@ -349,6 +386,7 @@ def vegetobKiller(row, col):
     #  listHerd[idHerd] = None
     for idPride in cells[row][col]['Prides']:
       listPride[idPride] = None
+      idPrides.remove(idPride)
     #cells[row][col]['Herds'] = []
     cells[row][col]['Prides'] = []
 
@@ -361,6 +399,7 @@ def joinPrides():
           listPride[cells[row][col]['Prides'][0]].memberList += listPride[idGroup].memberList
           listPride[idGroup] = None
           cells[row][col]['Prides'].remove(idGroup)
+          idPrides.remove(idGroup)
 
 def handleHerds():
   for row, col in np.ndindex(cells.shape):
@@ -369,7 +408,7 @@ def handleHerds():
       if numHerds > 1:
         cells[row][col]['Herds'].sort(key =lambda idGroup: len(listHerd[idGroup].memberList), reverse = True)
         avgSAHerds = np.average([np.average([carviz.socialAttitude for carviz in listHerd[cells[row][col]['Herds'][index]].memberList]) for index in range(len(cells[row][col]['Herds']))])
-        threshold = np.random.normal(5, 5)
+        threshold = np.random.normal(60, 10)
         if(avgSAHerds < threshold):
           #se ci sono più di 2 Herds nella stessa casella e abbiamo calcolato che combatteranno allora mettiamo da parte i due 
           # gruppi più numeri e gli altri li trattiamo nel seguente modo: 
@@ -382,6 +421,7 @@ def handleHerds():
                 majorGroupToJoin = random.randint(0,1)
                 listHerd[cells[row][col]['Herds'][majorGroupToJoin]].memberList += listHerd[minorHerdId].memberList
                 listHerd[minorHerdId] = None
+                idHerds.remove(minorHerdId)
                 cells[row][col]['Herds'].remove(minorHerdId)
                 numHerds-=1
           while numHerds > 1:
@@ -396,6 +436,7 @@ def handleHerds():
                 if(fightingHerd2.memberList==[]):
                   numHerds-=1
                   listHerd[cells[row][col]['Herds'][1]] = None
+                  idHerds.remove(cells[row][col]['Herds'][1])
                   cells[row][col]['Herds'].pop(1)
                   break
               else:
@@ -404,13 +445,15 @@ def handleHerds():
                 if(fightingHerd1.memberList==[]):
                   numHerds-=1
                   listHerd[cells[row][col]['Herds'][0]] = None
+                  idHerds.remove(cells[row][col]['Herds'][0])
                   cells[row][col]['Herds'].pop(0)
                   break
         else:
           for idGroup in cells[row][col]['Herds'][1:]:
             listHerd[cells[row][col]['Herds'][0]].memberList += listHerd[idGroup].memberList
             listHerd[idGroup] = None
-            cells[row][col]['Herds'].remove(idGroup)   
+            idHerds.remove(idGroup)
+            cells[row][col]['Herds'].remove(idGroup) 
 
 def livingSpecies(socialGroups):
   sum = 0
@@ -475,15 +518,18 @@ def update(screen, cells, size):
             pygame.draw.rect(screen, COLOR_HERD, (col*size+xRnd, row*size+yRnd, (0.3*size*sizeHerd)+(size/5), (0.3*size*sizeHerd)+(size/5)))
 
 dimensions = (600,600)
-sizeCell = 60
+sizeCell = 20
 numCells = int(dimensions[0]/sizeCell)
 #cells = checkConnections(numCells,createGrid(numCells))
 cells = createGrid(numCells)
-
+gen = 0
 def main():
+  global gen
   pygame.init()
   screen = pygame.display.set_mode(dimensions)
   screen.fill(COLOR_GRID)
+  
+
   update(screen, cells, sizeCell)
   pygame.display.flip()
   pygame.display.update()
@@ -492,13 +538,12 @@ def main():
   running = False
   while True:
     if gameStarted and firstGeneration:
-      generateAnimals(10,10)
+      generateAnimals(10,11)
       update(screen, cells, sizeCell)
       pygame.display.update()
       firstGeneration = False
       gameStarted = True
     if gameStarted and running:
-
       for row, col in np.ndindex(cells.shape):
         if cells[row][col]['type'] == 'ground':
           cells[row][col].get('grass').grow()
@@ -513,12 +558,10 @@ def main():
 
       update(screen, cells, sizeCell)
       pygame.display.update()
-      time.sleep(1)
       joinPrides()
       handleHerds()
       update(screen, cells, sizeCell)
       pygame.display.update()
-      time.sleep(1)
       hunt()
 
       for member in filter(lambda pride: pride is not None, listPride):
@@ -527,7 +570,9 @@ def main():
         member.agingGroup(livingSpecies(listHerd))
       update(screen, cells, sizeCell)
       pygame.display.update()
-      running = not running
+      gen += 1
+      #running = not running
+      #time.sleep(0.1)
     for event in pygame.event.get():
       if event.type == pygame.QUIT:
         pygame.quit()
@@ -547,6 +592,7 @@ def main():
       if pygame.mouse.get_pressed()[0]:
         pos= pygame.mouse.get_pos()
         cell = cells[pos[1] // sizeCell] [pos[0] // sizeCell]
+        print(gen)
         print('Cell of type:', cell.get('type'), '\nCoordinates:', pos[1]//sizeCell, pos[0]//sizeCell)
         if cell.get('type') == 'ground':
           print('Vegetob density:', round(cell.get('grass').density))
