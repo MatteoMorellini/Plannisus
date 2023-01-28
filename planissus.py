@@ -9,7 +9,12 @@ listHerd = [] #listHerd=[istance1, istance2 etc...]
 idHerds = []
 listPride = []
 idPrides = []
-rgbConfiguration = False
+
+
+dimensions = (600,600)
+sizeCell = 10
+numCells = int(dimensions[0]/sizeCell)
+rgbConfiguration = True if sizeCell < 20 else False
 
 yearLength = 10
 
@@ -129,14 +134,14 @@ class Carviz(Animal):
 
 def relativePosition(pos):
   relativePosition = pos / ((600/sizeCell)-2) #perchè se ci sono 10 celle, 2 sono i bordi quindi a noi interessano 8
-  rel = 0.4 - (relativePosition * 0.4)
+  rel = 0.3 - (relativePosition * 0.3)
   return rel
 
 def relativeMovement(rel):
   randomNumber = random.random()
   if(randomNumber <= 0.3):
     addPos = 0
-  elif(randomNumber > 0.3 and randomNumber < 0.45+rel):
+  elif(randomNumber > 0.3 and randomNumber < 0.50+rel):
     addPos = 1
   else:
     addPos = -1
@@ -495,38 +500,62 @@ def generateAnimals(nErbast, nCarviz):
     Carviz(xCreature, yCreature, energyCreature, lifetimeCreature, socialAttitudeCreature, idHerd)
 
 def update(screen, cells, size):
-  for row, col in np.ndindex(cells.shape):
-    color = COLOR_WATER if cells[row, col].get('type') == 'water' else COLOR_GROUND
-    pygame.draw.rect(screen, color, (col*size, row*size, size-1, size-1))
-    if color == COLOR_GROUND:
-      vegetob = cells[row][col].get('grass')
-      vegetobSize = 0 if vegetob.density == 0 else vegetob.density/100*(size-1)
-      pygame.draw.rect(screen, COLOR_VEGETOB, (col*size, row*size, vegetobSize, vegetobSize))
-      herds = cells[row][col].get('Herds')
-      prides = cells[row][col].get('Prides')
-      if len(prides) > 0:
-        for idPride in prides:
-          if(len(listPride[idPride].memberList)>0):
-            sizePride = len(listPride[idPride].memberList)/livingSpecies(listPride)
-            xRnd = random.randint(1,size-int((0.3*size*sizePride)+(size/5)+2))
-            yRnd = random.randint(1,size-int((0.3*size*sizePride)+(size/5)+2))
-            pygame.draw.rect(screen, (0,0,0), (col*size+xRnd-1, row*size+yRnd-1, (0.3*size*sizePride)+(size/5)+2, (0.3*size*sizePride)+(size/5)+2))
-            pygame.draw.rect(screen, COLOR_PRIDE, (col*size+xRnd, row*size+yRnd, (0.3*size*sizePride)+(size/5), (0.3*size*sizePride)+(size/5)))
-          #si moltiplica x0.3 perchè al massimo un branco può essere grande 1/2 della cella
-      if len(herds) > 0:
-        for idHerd in herds:
-          if(len(listHerd[idHerd].memberList)>0):
-            sizeHerd = len(listHerd[idHerd].memberList)/livingSpecies(listHerd)
-            xRnd = random.randint(1,size-int((0.3*size*sizeHerd)+(size/5)+2))
-            yRnd = random.randint(1,size-int((0.3*size*sizeHerd)+(size/5)+2))
-            pygame.draw.rect(screen, (0,0,0), (col*size+xRnd-1, row*size+yRnd-1, (0.3*size*sizeHerd)+(size/5)+2, (0.3*size*sizeHerd)+(size/5)+2))
-            pygame.draw.rect(screen, COLOR_HERD, (col*size+xRnd, row*size+yRnd, (0.3*size*sizeHerd)+(size/5), (0.3*size*sizeHerd)+(size/5)))
+  if rgbConfiguration:
+    for row, col in np.ndindex(cells.shape):
+      if(cells[row, col].get('type') == 'water'):
+        pygame.draw.rect(screen, (144,144,144), (col*size, row*size, size-1, size-1))
+      else:
+        redIntensity = greenIntensity = blueIntensity = 0
+        
+        herds = cells[row][col].get('Herds')
+        prides = cells[row][col].get('Prides')
+        if(len(herds)==0 and len(prides)==0):
+          vegetob = cells[row][col].get('grass')
+          greenIntensity = 255 if vegetob.density == 0 else 255-155*(vegetob.density/100)
+        else:
+          if len(prides) > 0:
+            sizePride = 0
+            for idPride in prides:
+              sizePride += len(listPride[idPride].memberList)/livingSpecies(listPride)
+            blueIntensity = 255 - round(155*sizePride)
+          if len(herds)>0:
+            sizeHerd = 0
+            for idHerd in herds:
+              sizeHerd += len(listHerd[idHerd].memberList)/livingSpecies(listHerd)
+            redIntensity = 255 - round(155*sizeHerd)
 
-dimensions = (600,600)
-sizeCell = 20
-numCells = int(dimensions[0]/sizeCell)
-#cells = checkConnections(numCells,createGrid(numCells))
+        pygame.draw.rect(screen, (redIntensity, greenIntensity, blueIntensity), (col*size, row*size, size-1, size-1))
+
+  else:
+    for row, col in np.ndindex(cells.shape):
+      color = COLOR_WATER if cells[row, col].get('type') == 'water' else COLOR_GROUND
+      pygame.draw.rect(screen, color, (col*size, row*size, size-1, size-1))
+      if color == COLOR_GROUND:
+        vegetob = cells[row][col].get('grass')
+        vegetobSize = 0 if vegetob.density == 0 else vegetob.density/100*(size-1)
+        pygame.draw.rect(screen, COLOR_VEGETOB, (col*size, row*size, vegetobSize, vegetobSize))
+        herds = cells[row][col].get('Herds')
+        prides = cells[row][col].get('Prides')
+        if len(prides) > 0:
+          for idPride in prides:
+            if(len(listPride[idPride].memberList)>0):
+              sizePride = len(listPride[idPride].memberList)/livingSpecies(listPride)
+              xRnd = random.randint(1,size-int((0.3*size*sizePride)+(size/5)+2))
+              yRnd = random.randint(1,size-int((0.3*size*sizePride)+(size/5)+2))
+              pygame.draw.rect(screen, (0,0,0), (col*size+xRnd-1, row*size+yRnd-1, (0.3*size*sizePride)+(size/5)+2, (0.3*size*sizePride)+(size/5)+2))
+              pygame.draw.rect(screen, COLOR_PRIDE, (col*size+xRnd, row*size+yRnd, (0.3*size*sizePride)+(size/5), (0.3*size*sizePride)+(size/5)))
+            #si moltiplica x0.3 perchè al massimo un branco può essere grande 1/2 della cella
+        if len(herds) > 0:
+          for idHerd in herds:
+            if(len(listHerd[idHerd].memberList)>0):
+              sizeHerd = len(listHerd[idHerd].memberList)/livingSpecies(listHerd)
+              xRnd = random.randint(1,size-int((0.3*size*sizeHerd)+(size/5)+2))
+              yRnd = random.randint(1,size-int((0.3*size*sizeHerd)+(size/5)+2))
+              pygame.draw.rect(screen, (0,0,0), (col*size+xRnd-1, row*size+yRnd-1, (0.3*size*sizeHerd)+(size/5)+2, (0.3*size*sizeHerd)+(size/5)+2))
+              pygame.draw.rect(screen, COLOR_HERD, (col*size+xRnd, row*size+yRnd, (0.3*size*sizeHerd)+(size/5), (0.3*size*sizeHerd)+(size/5)))
+
 cells = createGrid(numCells)
+
 def main():
   pygame.init()
   screen = pygame.display.set_mode(dimensions)
@@ -560,10 +589,12 @@ def main():
 
       update(screen, cells, sizeCell)
       pygame.display.update()
+      #time.sleep(0.5)
       joinPrides()
       handleHerds()
       update(screen, cells, sizeCell)
       pygame.display.update()
+      #time.sleep(0.5)
       hunt()
 
       for member in filter(lambda pride: pride is not None, listPride):
@@ -573,7 +604,7 @@ def main():
       update(screen, cells, sizeCell)
       pygame.display.update()
       #running = not running
-      #time.sleep(0.1)
+      #time.sleep(1)
     for event in pygame.event.get():
       if event.type == pygame.QUIT:
         pygame.quit()
