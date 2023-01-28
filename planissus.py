@@ -32,6 +32,9 @@ class Vegetob():
   def density(self, new_density):
     if new_density >= 0 and new_density <= 100:
       self._density = new_density
+    elif new_density>100:
+      self._density = 100
+    else: self._density = 0
 
 
 class Animal():
@@ -374,20 +377,23 @@ def vegetobKiller(row, col):
   subset = list(cells[row-1:row+2, col-1:col+2].flat)
   subset.pop(4)
   subset = [cell for cell in subset if cell.get('type') == 'ground']
-  nearFullGrowth = len([cell for cell in subset if cell.get('grass').density==100])
+  nearFullGrowth = len([cell.get('grass').density for cell in subset if cell.get('grass').density==100])
   if nearFullGrowth == len(subset)-1 and nearFullGrowth > 1:
-    print('muore un pride')
-    print(subset, nearFullGrowth)
     for idPride in cells[row][col]['Prides']:
       listPride[idPride] = None
       idPrides.remove(idPride)
     cells[row][col]['Prides'] = []
-  if nearFullGrowth == len(subset) and nearFullGrowth > 1:
-    print('muore un herd')
+  elif nearFullGrowth == len(subset): 
+    #ho rimesso i Pride perchè o girano in una cella con energia al massimo oppure considero l'ipotesi in 
+    #cui un gruppo nasca su un'isola dove senza questo controllo vivrebbe per sempre
     for idHerd in cells[row][col]['Herds']:
       listHerd[idHerd] = None
       idHerds.remove(idHerd)
     cells[row][col]['Herds'] = []
+    for idPride in cells[row][col]['Prides']:
+      listPride[idPride] = None
+      idPrides.remove(idPride)
+    cells[row][col]['Prides'] = []
 
 def joinPrides():
   for row, col in np.ndindex(cells.shape):
@@ -534,7 +540,7 @@ def main():
   running = False
   while True:
     if gameStarted and firstGeneration:
-      generateAnimals(0,100)
+      generateAnimals(10,10)
       update(screen, cells, sizeCell)
       pygame.display.update()
       firstGeneration = False
