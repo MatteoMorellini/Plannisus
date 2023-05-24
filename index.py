@@ -8,23 +8,20 @@ from grid import createGrid
 from settings import *
 from vegetob import Vegetob
 from animals import Erbast, Carviz
-
+listHerd = []  # listHerd=[istance1, istance2 etc...]
+idHerds = []
+listPride = []
+idPrides = []
 cells = createGrid(numCells)
 
 
-'''def resetIndex(idHerds, idPrides, listHerd, listPride):
-    print('********************')
-    print(idHerds)
+def resetIndex(idHerds, idPrides, listHerd, listPride):
     enumeratedIndex = list(range(len(idHerds)))
     substitute = dict(zip(idHerds, enumeratedIndex))
     idHerds = enumeratedIndex
     for cell in list(cells.flat):
         if cell['type'] == 'ground' and len(cell['Herds']) != 0:
-            print(substitute)
-            print(cell['Herds'])
             cell['Herds'] = list(map(lambda x: substitute[x], cell['Herds']))
-            print(cell['Herds'])
-            print('--------------')
     enumeratedIndex = list(range(len(idPrides)))
     substitute = dict(zip(idPrides, enumeratedIndex))
     idPrides = enumeratedIndex
@@ -37,8 +34,7 @@ cells = createGrid(numCells)
         herd.id = count
     for count, pride in enumerate(listPride):
         pride.id = count
-
-'''
+    return idHerds, idPrides, listHerd, listPride
 
 
 def hunt():
@@ -224,12 +220,12 @@ def generateAnimals(nErbast, nCarviz):
         xCreature, yCreature, energyCreature, lifetimeCreature, socialAttitudeCreature, idPride = attributeNewAnimal(
             'Erbast')
         Erbast(xCreature, yCreature, energyCreature, lifetimeCreature,
-               socialAttitudeCreature, cells, idPride)
+               socialAttitudeCreature, cells, listPride, idPrides, idPride)
     for k in range(nCarviz):
         xCreature, yCreature, energyCreature, lifetimeCreature, socialAttitudeCreature, idHerd = attributeNewAnimal(
             'Carviz')
         Carviz(xCreature, yCreature, energyCreature, lifetimeCreature,
-               socialAttitudeCreature, cells, idHerd)
+               socialAttitudeCreature, cells, listHerd, idHerds, idHerd)
 
 
 def update(screen, cells, size):
@@ -294,6 +290,7 @@ def update(screen, cells, size):
                         # si moltiplica x0.3 perchè al massimo un branco può essere grande 1/2 della cella
                 if len(herds) > 0:
                     for idHerd in herds:
+
                         if (len(listHerd[idHerd].memberList) > 0):
                             sizeHerd = len(
                                 listHerd[idHerd].memberList)/livingSpecies(listHerd)
@@ -302,12 +299,13 @@ def update(screen, cells, size):
                             yRnd = random.randint(
                                 1, size-int((0.3*size*sizeHerd)+(size/5)+2))
                             pygame.draw.rect(screen, (0, 0, 0), (col*size+xRnd-1, row*size+yRnd-1,
-                                             (0.3*size*sizeHerd)+(size/5)+2, (0.3*size*sizeHerd)+(size/5)+2))
+                                                                 (0.3*size*sizeHerd)+(size/5)+2, (0.3*size*sizeHerd)+(size/5)+2))
                             pygame.draw.rect(screen, COLOR_HERD, (col*size+xRnd, row*size+yRnd,
-                                             (0.3*size*sizeHerd)+(size/5), (0.3*size*sizeHerd)+(size/5)))
+                                                                  (0.3*size*sizeHerd)+(size/5), (0.3*size*sizeHerd)+(size/5)))
 
 
 def main():
+    global listPride, listHerd, idPrides, idHerds
     pygame.init()
     screen = pygame.display.set_mode(dimensions)
     screen.fill(COLOR_GRID)
@@ -333,11 +331,11 @@ def main():
                     vegetobKiller(row, col)
 
             for member in filter(lambda pride: pride is not None, listPride):
-                member.decideStrategy(cells)
+                member.decideStrategy(cells, listPride, idPrides)
 
             # se un Herd deve ancora muoversi e ha un Pride che costretto si è mosso nella sua cella, allora troverà xMov=yMov=0
             for member in filter(lambda herd: herd is not None, listHerd):
-                member.decideStrategy(cells)
+                member.decideStrategy(cells, listHerd, idHerds)
 
             update(screen, cells, sizeCell)
             pygame.display.update()
@@ -350,24 +348,26 @@ def main():
             hunt()
 
             for member in filter(lambda pride: pride is not None, listPride):
-                member.agingGroup(livingSpecies(listPride), cells)
+                member.agingGroup(livingSpecies(listPride),
+                                  cells, listPride, idPrides)
             for member in filter(lambda herd: herd is not None, listHerd):
-                member.agingGroup(livingSpecies(listHerd), cells)
+                member.agingGroup(livingSpecies(listHerd),
+                                  cells, listHerd, idHerds)
             update(screen, cells, sizeCell)
             pygame.display.update()
             if (livingSpecies(listHerd) == 0):
                 print(f'Match lasted {generationCounter} rounds')
-                print(len(listPride))
                 pygame.quit()
                 return
             else:
                 generationCounter += 1
-
-            # resetIndex(idHerds, idPrides, listHerd, listPride)
+            idHerds, idPrides, listHerd, listPride = resetIndex(
+                idHerds, idPrides, listHerd, listPride)
             # running = not running
             # time.sleep(.1)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                print(idPrides)
                 pygame.quit()
                 return
             if event.type == pygame.KEYDOWN:

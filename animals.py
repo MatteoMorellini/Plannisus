@@ -1,7 +1,7 @@
 import random
 import numpy as np
 from groups import Herd, Pride
-from settings import yearLength, listHerd, listPride, idPrides, idHerds
+from settings import yearLength
 
 
 class Animal():
@@ -37,7 +37,7 @@ class Animal():
 
 
 class Erbast(Animal):
-    def __init__(self, x, y, energy, lifetime, socialAttitude, cells, idPride=None, sight=1):
+    def __init__(self, x, y, energy, lifetime, socialAttitude, cells, listPride, idPrides, idPride=None, sight=1):
         super().__init__(energy, lifetime, socialAttitude, sight)
         if idPride in idPrides:
             listPride[idPride].memberList.append(self)
@@ -49,14 +49,15 @@ class Erbast(Animal):
     def grazing(self):
         self.energy += 1
 
-    def aging(self, idPride, livingSpecies, cells):
+    def aging(self, idPride, livingSpecies, cells, listPride, idPrides):
         self.age += 1
         if self.age % yearLength == 0:
             self.energy -= 1
         if self.age >= self.lifetime*yearLength:
-            self.generateOffspring(idPride, livingSpecies, cells)
+            self.generateOffspring(
+                idPride, livingSpecies, cells, listPride, idPrides)
 
-    def generateOffspring(self, idPride, livingSpecies, cells):
+    def generateOffspring(self, idPride, livingSpecies, cells, listPride, idPrides):
         sizePride = len(listPride[idPride].memberList)/livingSpecies
         listPride[idPride].memberList.remove(self)
         # si potrebbe pensare di fare questo in base alla popolazione nei 9 quadrati con centro
@@ -70,11 +71,11 @@ class Erbast(Animal):
         for successor in range(0, successors):
             socialAttitude, energy, lifetime = self.generateOffspringProperties()
             Erbast(listPride[idPride].x, listPride[idPride].y,
-                   energy, lifetime, socialAttitude, cells, idPride)
+                   energy, lifetime, socialAttitude, cells, listPride, idPrides, idPride)
 
 
 class Carviz(Animal):
-    def __init__(self, x, y, energy, lifetime, socialAttitude, cells, idHerd=None, sight=1):
+    def __init__(self, x, y, energy, lifetime, socialAttitude, cells, listHerd, idHerds, idHerd=None, sight=1):
         super().__init__(energy, lifetime, socialAttitude, sight)
         self.id = int(random.random()*1000)
         if idHerd in idHerds:
@@ -84,14 +85,15 @@ class Carviz(Animal):
             idHerds.append(idHerd)
             listHerd.append(Herd(idHerd, [self], x, y, cells=cells))
 
-    def aging(self, idHerd, livingSpecies, cells):
+    def aging(self, idHerd, livingSpecies, cells, listHerd, idHerds):
         self.age += 1
         if self.age % yearLength == 0:
             self.energy -= 1
         if self.age >= self.lifetime*yearLength:
-            self.generateOffspring(idHerd, livingSpecies, cells)
+            self.generateOffspring(idHerd, livingSpecies,
+                                   cells, listHerd, idHerds)
 
-    def generateOffspring(self, idHerd, livingSpecies, cells):
+    def generateOffspring(self, idHerd, livingSpecies, cells, listHerd, idHerds):
         sizeHerd = len(listHerd[idHerd].memberList)/livingSpecies
         listHerd[idHerd].memberList.remove(self)
         if livingSpecies > 100:
@@ -103,4 +105,4 @@ class Carviz(Animal):
         for successor in range(0, successors):
             socialAttitude, energy, lifetime = self.generateOffspringProperties()
             Carviz(listHerd[idHerd].x, listHerd[idHerd].y,
-                   energy, lifetime, socialAttitude, cells, idHerd)
+                   energy, lifetime, socialAttitude, cells, listHerd, idHerds, idHerd)
