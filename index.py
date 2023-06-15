@@ -1,18 +1,21 @@
 import random
 import numpy as np
-import pygame
-import time
 import os
 import math
 from grid import createGrid
 from settings import *
 from vegetob import Vegetob
 from animals import Erbast, Carviz
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 listHerd = []  # listHerd=[istance1, istance2 etc...]
 idHerds = []
 listPride = []
 idPrides = []
 cells = createGrid(numCells)
+firstGeneration = True
+running = False
+generationCounter = 0
 
 
 def resetIndex(idHerds, idPrides, listHerd, listPride):
@@ -228,12 +231,108 @@ def generateAnimals(nErbast, nCarviz):
                socialAttitudeCreature, cells, listHerd, idHerds, idHerd)
 
 
-def update(screen, cells, size):
-    if rgbConfiguration:
+def buttonPressed(event):
+    if event.button == 1:  # Clic sinistro del mouse
+        # Ottenimento delle coordinate del punto cliccato
+        x, y = event.xdata, event.ydata
+
+        # Stampa delle coordinate
+        print(f"Coordinate: x={x}, y={y}")
+        cell = cells[math.floor(y*numCells)][math.floor(x*numCells)]
+        print('Cell of type:', cell.get('type'),
+              '\nCoordinates:', math.floor(y*numCells), math.floor(x*numCells))
+        if cell.get('type') == 'ground':
+            print('Vegetob density:', round(cell.get('grass').density))
+            if cell.get('Herds') != []:
+                herds = cell.get('Herds')
+                print('****************')
+                for herd in herds:
+                    print(f'Average values of the Herd:')
+                    avgEnergy = np.average(
+                        [member.energy for member in listHerd[herd].memberList])
+                    avgAge = np.average(
+                        [member.age for member in listHerd[herd].memberList])
+                    avgSA = np.average(
+                        [member.socialAttitude for member in listHerd[herd].memberList])
+                    avgLifetime = np.average(
+                        [member.lifetime for member in listHerd[herd].memberList])
+                    print(
+                        f'Number of components: {len(listHerd[herd].memberList)}, Energy: {math.ceil(avgEnergy)}, Age: {math.floor(avgAge)}, Social attitude: {math.ceil(avgSA)}, Lifetime: {math.ceil(yearLength*avgLifetime)}')
+            if cell.get('Prides') != []:
+                prides = cell.get('Prides')
+                print('________________')
+                for pride in prides:
+                    print(f'Values of the Erbast:')
+                    print(pride)
+                    avgEnergy = np.average(
+                        [member.energy for member in listPride[pride].memberList])
+                    avgAge = np.average(
+                        [member.age for member in listPride[pride].memberList])
+                    avgSA = np.average(
+                        [member.socialAttitude for member in listPride[pride].memberList])
+                    avgLifetime = np.average(
+                        [member.lifetime for member in listPride[pride].memberList])
+                    print(
+                        f'Number of components: {len(listPride[pride].memberList)}, Energy: {math.ceil(avgEnergy)}, Age: {math.floor(avgAge)}, Social attitude: {math.ceil(avgSA)}, Lifetime: {math.ceil(yearLength*avgLifetime)}')
+        print('------------------')
+
+
+def keyPressed(event):
+    global running, interval
+    if (event.key == 'enter'):
+
+        if (generationCounter == 0):
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print('++++++++++++++++++++++')
+            print('GAME STARTED')
+            print('++++++++++++++++++++++')
+        running = True
+    elif event.key == ' ':
+        running = False
+
+
+fig, ax = plt.subplots()
+cid = fig.canvas.mpl_connect('button_press_event', buttonPressed)
+cid = fig.canvas.mpl_connect('key_press_event', keyPressed)
+ax.axis('off')
+
+
+def createScreen(cells):
+    for row, col in np.ndindex(cells.shape):
+        if (cells[row, col].get('type') == 'water'):
+            blueIntensity = greenIntensity = redIntensity = 144
+
+        else:
+            redIntensity = greenIntensity = blueIntensity = 0
+            herds = cells[row][col].get('Herds')
+            prides = cells[row][col].get('Prides')
+            if (len(herds) == 0 and len(prides) == 0):
+                vegetob = cells[row][col].get('grass')
+                greenIntensity = 255 if vegetob.density == 0 else 255 - \
+                    155*(vegetob.density/100)
+            else:
+                if len(prides) > 0:
+                    sizePride = 0
+                    for idPride in prides:
+                        sizePride += len(listPride[idPride].memberList) / \
+                            livingSpecies(listPride)
+                    blueIntensity = 255 - round(155*sizePride)
+                if len(herds) > 0:
+                    sizeHerd = 0
+                    for idHerd in herds:
+                        sizeHerd += len(listHerd[idHerd].memberList) / \
+                            livingSpecies(listHerd)
+                    redIntensity = 255 - round(155*sizeHerd)
+        cells[row, col]['draw'] = plt.Rectangle((col/numCells, row/numCells), 1/numCells, 1/numCells, facecolor=(
+            redIntensity/255, greenIntensity/255, blueIntensity/255, 1))
+        ax.add_patch(cells[row, col]['draw'])
+
+
+def updateScreen(cells):
+    if True:
         for row, col in np.ndindex(cells.shape):
             if (cells[row, col].get('type') == 'water'):
-                pygame.draw.rect(screen, (144, 144, 144),
-                                 (col*size, row*size, size-1, size-1))
+                continue
             else:
                 redIntensity = greenIntensity = blueIntensity = 0
 
@@ -256,187 +355,49 @@ def update(screen, cells, size):
                             sizeHerd += len(listHerd[idHerd].memberList) / \
                                 livingSpecies(listHerd)
                         redIntensity = 255 - round(155*sizeHerd)
+            cells[row, col]['draw'].set_facecolor(
+                (redIntensity/255, greenIntensity/255, blueIntensity/255, 1))
 
-                pygame.draw.rect(screen, (redIntensity, greenIntensity,
-                                 blueIntensity), (col*size, row*size, size-1, size-1))
 
-    else:
+def update(frame):
+    global firstGeneration, running, cells, listPride, idPrides, listHerd, idHerds, generationCounter
+    if firstGeneration:
+        generateAnimals(10, 10)
+        firstGeneration = False
+        createScreen(cells)
+    if running:
         for row, col in np.ndindex(cells.shape):
-            color = COLOR_WATER if cells[row, col].get(
-                'type') == 'water' else COLOR_GROUND
-            pygame.draw.rect(
-                screen, color, (col*size, row*size, size-1, size-1))
-            if color == COLOR_GROUND:
-                vegetob = cells[row][col].get('grass')
-                vegetobSize = 0 if vegetob.density == 0 else vegetob.density / \
-                    100*(size-1)
-                pygame.draw.rect(screen, COLOR_VEGETOB,
-                                 (col*size, row*size, vegetobSize, vegetobSize))
-                herds = cells[row][col].get('Herds')
-                prides = cells[row][col].get('Prides')
-                if len(prides) > 0:
-                    for idPride in prides:
-                        if (len(listPride[idPride].memberList) > 0):
-                            sizePride = len(
-                                listPride[idPride].memberList)/livingSpecies(listPride)
-                            xRnd = random.randint(
-                                1, size-int((0.3*size*sizePride)+(size/5)+2))
-                            yRnd = random.randint(
-                                1, size-int((0.3*size*sizePride)+(size/5)+2))
-                            pygame.draw.rect(screen, (0, 0, 0), (col*size+xRnd-1, row*size+yRnd-1,
-                                             (0.3*size*sizePride)+(size/5)+2, (0.3*size*sizePride)+(size/5)+2))
-                            pygame.draw.rect(screen, COLOR_PRIDE, (col*size+xRnd, row*size+yRnd,
-                                             (0.3*size*sizePride)+(size/5), (0.3*size*sizePride)+(size/5)))
-                        # si moltiplica x0.3 perchè al massimo un branco può essere grande 1/2 della cella
-                if len(herds) > 0:
-                    for idHerd in herds:
+            if cells[row][col]['type'] == 'ground':
+                cells[row][col].get('grass').grow()
+                vegetobKiller(row, col)
 
-                        if (len(listHerd[idHerd].memberList) > 0):
-                            sizeHerd = len(
-                                listHerd[idHerd].memberList)/livingSpecies(listHerd)
-                            xRnd = random.randint(
-                                1, size-int((0.3*size*sizeHerd)+(size/5)+2))
-                            yRnd = random.randint(
-                                1, size-int((0.3*size*sizeHerd)+(size/5)+2))
-                            pygame.draw.rect(screen, (0, 0, 0), (col*size+xRnd-1, row*size+yRnd-1,
-                                                                 (0.3*size*sizeHerd)+(size/5)+2, (0.3*size*sizeHerd)+(size/5)+2))
-                            pygame.draw.rect(screen, COLOR_HERD, (col*size+xRnd, row*size+yRnd,
-                                                                  (0.3*size*sizeHerd)+(size/5), (0.3*size*sizeHerd)+(size/5)))
+        for member in filter(lambda pride: pride is not None, listPride):
+            member.decideStrategy(cells, listPride, idPrides)
+
+        # se un Herd deve ancora muoversi e ha un Pride che costretto si è mosso nella sua cella, allora troverà xMov=yMov=0
+        for member in filter(lambda herd: herd is not None, listHerd):
+            member.decideStrategy(cells, listHerd, idHerds)
+
+        joinPrides()
+        handleHerds()
+        hunt()
+
+        for member in filter(lambda pride: pride is not None, listPride):
+            member.agingGroup(livingSpecies(listPride),
+                              cells, listPride, idPrides)
+        for member in filter(lambda herd: herd is not None, listHerd):
+            member.agingGroup(livingSpecies(listHerd),
+                              cells, listHerd, idHerds)
+        if (livingSpecies(listHerd) == 0):
+            print(f'Match lasted {generationCounter} rounds')
+            plt.close()
+
+        else:
+            generationCounter += 1
+        idHerds, idPrides, listHerd, listPride = resetIndex(
+            idHerds, idPrides, listHerd, listPride)
+        updateScreen(cells)
 
 
-def main():
-    global listPride, listHerd, idPrides, idHerds
-    pygame.init()
-    screen = pygame.display.set_mode(dimensions)
-    screen.fill(COLOR_GRID)
-    update(screen, cells, sizeCell)
-    pygame.display.flip()
-    pygame.display.update()
-    gameStarted = False
-    firstGeneration = True
-    running = False
-    generationCounter = 0
-    pause = 0
-    while True:
-        if gameStarted and firstGeneration:
-            generateAnimals(10, 10)
-            update(screen, cells, sizeCell)
-            pygame.display.update()
-            firstGeneration = False
-            gameStarted = True
-        if gameStarted and running:
-            for row, col in np.ndindex(cells.shape):
-                if cells[row][col]['type'] == 'ground':
-                    cells[row][col].get('grass').grow()
-                    vegetobKiller(row, col)
-
-            for member in filter(lambda pride: pride is not None, listPride):
-                member.decideStrategy(cells, listPride, idPrides)
-
-            # se un Herd deve ancora muoversi e ha un Pride che costretto si è mosso nella sua cella, allora troverà xMov=yMov=0
-            for member in filter(lambda herd: herd is not None, listHerd):
-                member.decideStrategy(cells, listHerd, idHerds)
-
-            update(screen, cells, sizeCell)
-            pygame.display.update()
-            # time.sleep(pause)
-            joinPrides()
-            handleHerds()
-            update(screen, cells, sizeCell)
-            pygame.display.update()
-            # time.sleep(pause)
-            hunt()
-
-            for member in filter(lambda pride: pride is not None, listPride):
-                member.agingGroup(livingSpecies(listPride),
-                                  cells, listPride, idPrides)
-            for member in filter(lambda herd: herd is not None, listHerd):
-                member.agingGroup(livingSpecies(listHerd),
-                                  cells, listHerd, idHerds)
-            update(screen, cells, sizeCell)
-            pygame.display.update()
-            if (livingSpecies(listHerd) == 0):
-                print(f'Match lasted {generationCounter} rounds')
-                pygame.quit()
-                return
-            else:
-                generationCounter += 1
-            idHerds, idPrides, listHerd, listPride = resetIndex(
-                idHerds, idPrides, listHerd, listPride)
-            # running = not running
-            # time.sleep(.1)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                print(idPrides)
-                pygame.quit()
-                return
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    update(screen, cells, sizeCell)
-                    pygame.display.update()
-                    running = not running
-            if event.type == pygame.KEYDOWN:
-                if (event.key == 115):
-                    os.system('cls' if os.name == 'nt' else 'clear')
-                    print('++++++++++++++++++++++')
-                    print('GAME STARTED')
-                    print('++++++++++++++++++++++')
-                    gameStarted = True
-                elif (event.key == 43 and pause < 5):
-                    pause += 0.1
-                elif (event.key == 45 and pause >= 0.1):
-                    pause -= 0.1
-            if pygame.mouse.get_pressed()[0]:
-                pos = pygame.mouse.get_pos()
-                cell = cells[pos[1] // sizeCell][pos[0] // sizeCell]
-                print('Cell of type:', cell.get('type'),
-                      '\nCoordinates:', pos[1]//sizeCell, pos[0]//sizeCell)
-                if cell.get('type') == 'ground':
-                    print('Vegetob density:', round(cell.get('grass').density))
-                    if cell.get('Herds') != []:
-                        herds = cell.get('Herds')
-                        print('****************')
-                        for herd in herds:
-                            print(f'Average values of the Herd:')
-                            avgEnergy = np.average(
-                                [member.energy for member in listHerd[herd].memberList])
-                            avgAge = np.average(
-                                [member.age for member in listHerd[herd].memberList])
-                            avgSA = np.average(
-                                [member.socialAttitude for member in listHerd[herd].memberList])
-                            avgLifetime = np.average(
-                                [member.lifetime for member in listHerd[herd].memberList])
-                            print(
-                                f'Number of components: {len(listHerd[herd].memberList)}, Energy: {math.ceil(avgEnergy)}, Age: {math.floor(avgAge)}, Social attitude: {math.ceil(avgSA)}, Lifetime: {math.ceil(yearLength*avgLifetime)}')
-                    if cell.get('Prides') != []:
-                        prides = cell.get('Prides')
-                        print('________________')
-                        for pride in prides:
-                            print(f'Values of the Erbast:')
-                            print(pride)
-                            avgEnergy = np.average(
-                                [member.energy for member in listPride[pride].memberList])
-                            avgAge = np.average(
-                                [member.age for member in listPride[pride].memberList])
-                            avgSA = np.average(
-                                [member.socialAttitude for member in listPride[pride].memberList])
-                            avgLifetime = np.average(
-                                [member.lifetime for member in listPride[pride].memberList])
-                            print(
-                                f'Number of components: {len(listPride[pride].memberList)}, Energy: {math.ceil(avgEnergy)}, Age: {math.floor(avgAge)}, Social attitude: {math.ceil(avgSA)}, Lifetime: {math.ceil(yearLength*avgLifetime)}')
-                print('------------------')
-            if pygame.mouse.get_pressed()[2] and not gameStarted:
-                pos = pygame.mouse.get_pos()
-                if (pos[1]//sizeCell != 0 and pos[1] != 9 and pos[0]//sizeCell != 0 and pos[0]//sizeCell != 0):
-                    cells[pos[1] // sizeCell][pos[0] // sizeCell] = {"type": 'ground', 'grass': Vegetob(random.randint(
-                        0, 100)), 'Herds': [], 'Prides': []} if cells[pos[1] // sizeCell][pos[0] // sizeCell]['type'] == 'water' else {'type': 'water'}
-                    update(screen, cells, sizeCell)
-                    pygame.display.flip()
-                    pygame.display.update()
-                    time.sleep(0.1)
-
-        screen.fill(COLOR_GRID)
-
-
-if __name__ == "__main__":
-    main()
+anim = FuncAnimation(fig, update, interval=500)
+plt.show()
