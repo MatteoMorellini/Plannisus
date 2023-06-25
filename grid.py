@@ -10,5 +10,5 @@ def createGrid(numCells):
         for j in range(1, numCells-1):
             if (random.random() >= .3):
                 grid[i][j] = {"type": 'ground', 'grass': Vegetob(
-                    random.randint(0, 50)), 'Herds': [], 'Prides': []}
+                    random.randint(0, 50)), 'Herds': [], 'Prides': [], 'tracked': 0}
     return grid

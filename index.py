@@ -233,10 +233,9 @@ def generateAnimals(nErbast, nCarviz):
 
 
 def buttonPressed(event):
-    if event.button == 1:  # Clic sinistro del mouse
+    if event.button == 1 and event.inaxes == ax1:  # Clic sinistro del mouse
         # Ottenimento delle coordinate del punto cliccato
         x, y = event.xdata, event.ydata
-
         cell = cells[math.floor(y*numCells)][math.floor(x*numCells)]
         print('Cell of type:', cell.get('type'),
               '\nCoordinates:', math.floor(y*numCells), math.floor(x*numCells))
@@ -274,6 +273,24 @@ def buttonPressed(event):
                     print(
                         f'Number of components: {len(listPride[pride].memberList)}, Energy: {math.ceil(avgEnergy)}, Age: {math.floor(avgAge)}, Social attitude: {math.ceil(avgSA)}, Lifetime: {math.ceil(yearLength*avgLifetime)}')
         print('------------------')
+    elif event.button == 3 and event.inaxes == ax1:
+        x, y = event.xdata, event.ydata
+        cell = cells[math.floor(y*numCells)][math.floor(x*numCells)]
+        if cell.get('type') == 'ground':
+            if cell.get('Herds') != []:
+                herds = cell.get('Herds')
+                for i, herd in enumerate(listHerd):
+                    if i in herds:
+                        herd.tracking = not herd.tracking
+                    else:
+                        herd.tracking = False
+            if cell.get('Prides') != []:
+                prides = cell.get('Prides')
+                for i, pride in enumerate(listPride):
+                    if i in prides:
+                        pride.tracking = not pride.tracking
+                    else:
+                        pride.tracking = False
 
 
 def keyPressed(event):
@@ -344,8 +361,8 @@ def updateScreen(cells, counter):
         if (cells[row, col].get('type') == 'water'):
             continue
         else:
+            cellTracked = False
             redIntensity = greenIntensity = blueIntensity = 0
-
             herds = cells[row][col].get('Herds')
             prides = cells[row][col].get('Prides')
             if (len(herds) == 0 and len(prides) == 0):
@@ -356,17 +373,34 @@ def updateScreen(cells, counter):
                 if len(prides) > 0:
                     sizePride = 0
                     for idPride in prides:
-                        sizePride += len(listPride[idPride].memberList) / \
+                        group = listPride[idPride]
+                        if group.tracking:
+                            cells[row][col]['tracked'] = 5
+                            cellTracked = True
+                        sizePride += len(group.memberList) / \
                             populationPride
                     blueIntensity = 255 - round(155*sizePride)
                 if len(herds) > 0:
                     sizeHerd = 0
                     for idHerd in herds:
-                        sizeHerd += len(listHerd[idHerd].memberList) / \
+                        group = listHerd[idHerd]
+                        if group.tracking:
+                            cells[row][col]['tracked'] = 5
+                            cellTracked = True
+                        sizeHerd += len(group.memberList) / \
                             populationHerd
                     redIntensity = 255 - round(155*sizeHerd)
-        cells[row, col]['draw'].set_facecolor(
-            (redIntensity/255, greenIntensity/255, blueIntensity/255, 1))
+        if redIntensity != 0 or blueIntensity != 0:
+            cells[row, col]['draw'].set_facecolor(
+                (redIntensity/255, greenIntensity/255, blueIntensity/255, 1))
+        elif cells[row][col]['tracked'] > 0 and not cellTracked:
+            cells[row][col]['tracked'] -= 1
+            cells[row, col]['draw'].set_facecolor(
+                (1, 1, 0, 1))
+        else:
+            cells[row, col]['draw'].set_facecolor(
+                (redIntensity/255, greenIntensity/255, blueIntensity/255, 1))
+
     ax2.cla()
     populationHistory[generationCounter] = ((populationPride, populationHerd))
     if generationCounter > 100:

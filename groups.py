@@ -12,6 +12,7 @@ class Group:
         self.memberList = memberList
         self.id = idGroup
         self.bornFromSeparation = bornFromSeparation
+        self.tracking = False
 
     def movedType(self, yMov, xMov): pass
     def deadGroup(self, cells, listGroup, idGroups): pass
