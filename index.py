@@ -4,7 +4,6 @@ import os
 import math
 from grid import createGrid
 from settings import *
-from vegetob import Vegetob
 from animals import Erbast, Carviz
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -16,6 +15,8 @@ cells = createGrid(numCells)
 firstGeneration = True
 running = False
 generationCounter = 0
+populationHistory = {}
+toDisplay = 'magenta'
 
 
 def resetIndex(idHerds, idPrides, listHerd, listPride):
@@ -133,7 +134,7 @@ def handleHerds():
                     listHerd[idGroup].memberList), reverse=True)
                 avgSAHerds = np.average([np.average([carviz.socialAttitude for carviz in listHerd[cells[row]
                                         [col]['Herds'][index]].memberList]) for index in range(len(cells[row][col]['Herds']))])
-                threshold = np.random.normal(60, 10)
+                threshold = np.random.normal(70, 10)
                 if (avgSAHerds < threshold):
                     # se ci sono più di 2 Herds nella stessa casella e abbiamo calcolato che combatteranno allora mettiamo da parte i due
                     # gruppi più numerosi e gli altri li trattiamo nel seguente modo:
@@ -219,12 +220,12 @@ def attributeNewAnimal(sort):
 
 
 def generateAnimals(nErbast, nCarviz):
-    for i in range(nErbast):
+    for _ in range(nErbast):
         xCreature, yCreature, energyCreature, lifetimeCreature, socialAttitudeCreature, idPride = attributeNewAnimal(
             'Erbast')
         Erbast(xCreature, yCreature, energyCreature, lifetimeCreature,
                socialAttitudeCreature, cells, listPride, idPrides, idPride)
-    for k in range(nCarviz):
+    for _ in range(nCarviz):
         xCreature, yCreature, energyCreature, lifetimeCreature, socialAttitudeCreature, idHerd = attributeNewAnimal(
             'Carviz')
         Carviz(xCreature, yCreature, energyCreature, lifetimeCreature,
@@ -236,8 +237,6 @@ def buttonPressed(event):
         # Ottenimento delle coordinate del punto cliccato
         x, y = event.xdata, event.ydata
 
-        # Stampa delle coordinate
-        print(f"Coordinate: x={x}, y={y}")
         cell = cells[math.floor(y*numCells)][math.floor(x*numCells)]
         print('Cell of type:', cell.get('type'),
               '\nCoordinates:', math.floor(y*numCells), math.floor(x*numCells))
@@ -278,7 +277,7 @@ def buttonPressed(event):
 
 
 def keyPressed(event):
-    global running, interval
+    global running, interval, toDisplay
     if (event.key == 'enter'):
 
         if (generationCounter == 0):
@@ -289,19 +288,27 @@ def keyPressed(event):
         running = True
     elif event.key == ' ':
         running = False
+    elif event.key == 'e':
+        toDisplay = 'blue'
+    elif event.key == 'c':
+        toDisplay = 'red'
+    elif event.key == 'a':
+        toDisplay = 'magenta'
 
 
-fig, ax = plt.subplots()
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
 cid = fig.canvas.mpl_connect('button_press_event', buttonPressed)
 cid = fig.canvas.mpl_connect('key_press_event', keyPressed)
-ax.axis('off')
+fig.suptitle('Day: 0')
+ax1.axis('off')
 
 
 def createScreen(cells):
+    populationPride = livingSpecies(listPride)
+    populationHerd = livingSpecies(listHerd)
     for row, col in np.ndindex(cells.shape):
         if (cells[row, col].get('type') == 'water'):
             blueIntensity = greenIntensity = redIntensity = 144
-
         else:
             redIntensity = greenIntensity = blueIntensity = 0
             herds = cells[row][col].get('Herds')
@@ -314,49 +321,68 @@ def createScreen(cells):
                 if len(prides) > 0:
                     sizePride = 0
                     for idPride in prides:
+
                         sizePride += len(listPride[idPride].memberList) / \
-                            livingSpecies(listPride)
+                            populationPride
                     blueIntensity = 255 - round(155*sizePride)
                 if len(herds) > 0:
                     sizeHerd = 0
                     for idHerd in herds:
                         sizeHerd += len(listHerd[idHerd].memberList) / \
-                            livingSpecies(listHerd)
+                            populationHerd
                     redIntensity = 255 - round(155*sizeHerd)
         cells[row, col]['draw'] = plt.Rectangle((col/numCells, row/numCells), 1/numCells, 1/numCells, facecolor=(
             redIntensity/255, greenIntensity/255, blueIntensity/255, 1))
-        ax.add_patch(cells[row, col]['draw'])
+        ax1.add_patch(cells[row, col]['draw'])
 
 
-def updateScreen(cells):
-    if True:
-        for row, col in np.ndindex(cells.shape):
-            if (cells[row, col].get('type') == 'water'):
-                continue
+def updateScreen(cells, counter):
+    global populationHistory
+    populationPride = livingSpecies(listPride)
+    populationHerd = livingSpecies(listHerd)
+    for row, col in np.ndindex(cells.shape):
+        if (cells[row, col].get('type') == 'water'):
+            continue
+        else:
+            redIntensity = greenIntensity = blueIntensity = 0
+
+            herds = cells[row][col].get('Herds')
+            prides = cells[row][col].get('Prides')
+            if (len(herds) == 0 and len(prides) == 0):
+                vegetob = cells[row][col].get('grass')
+                greenIntensity = 255 if vegetob.density == 0 else 255 - \
+                    155*(vegetob.density/100)
             else:
-                redIntensity = greenIntensity = blueIntensity = 0
-
-                herds = cells[row][col].get('Herds')
-                prides = cells[row][col].get('Prides')
-                if (len(herds) == 0 and len(prides) == 0):
-                    vegetob = cells[row][col].get('grass')
-                    greenIntensity = 255 if vegetob.density == 0 else 255 - \
-                        155*(vegetob.density/100)
-                else:
-                    if len(prides) > 0:
-                        sizePride = 0
-                        for idPride in prides:
-                            sizePride += len(listPride[idPride].memberList) / \
-                                livingSpecies(listPride)
-                        blueIntensity = 255 - round(155*sizePride)
-                    if len(herds) > 0:
-                        sizeHerd = 0
-                        for idHerd in herds:
-                            sizeHerd += len(listHerd[idHerd].memberList) / \
-                                livingSpecies(listHerd)
-                        redIntensity = 255 - round(155*sizeHerd)
-            cells[row, col]['draw'].set_facecolor(
-                (redIntensity/255, greenIntensity/255, blueIntensity/255, 1))
+                if len(prides) > 0:
+                    sizePride = 0
+                    for idPride in prides:
+                        sizePride += len(listPride[idPride].memberList) / \
+                            populationPride
+                    blueIntensity = 255 - round(155*sizePride)
+                if len(herds) > 0:
+                    sizeHerd = 0
+                    for idHerd in herds:
+                        sizeHerd += len(listHerd[idHerd].memberList) / \
+                            populationHerd
+                    redIntensity = 255 - round(155*sizeHerd)
+        cells[row, col]['draw'].set_facecolor(
+            (redIntensity/255, greenIntensity/255, blueIntensity/255, 1))
+    ax2.cla()
+    populationHistory[generationCounter] = ((populationPride, populationHerd))
+    if generationCounter > 100:
+        del populationHistory[generationCounter-100]
+    if toDisplay == 'blue':
+        populationToDisplay = [generation[0]
+                               for generation in populationHistory.values()]
+    elif toDisplay == 'red':
+        populationToDisplay = [generation[1]
+                               for generation in populationHistory.values()]
+    else:
+        populationToDisplay = [generation[0]+generation[1]
+                               for generation in populationHistory.values()]
+    ax2.plot(list(populationHistory.keys()),
+             populationToDisplay, color=toDisplay)
+    fig.suptitle(f'Day: {generationCounter}')
 
 
 def update(frame):
@@ -373,7 +399,6 @@ def update(frame):
 
         for member in filter(lambda pride: pride is not None, listPride):
             member.decideStrategy(cells, listPride, idPrides)
-
         # se un Herd deve ancora muoversi e ha un Pride che costretto si è mosso nella sua cella, allora troverà xMov=yMov=0
         for member in filter(lambda herd: herd is not None, listHerd):
             member.decideStrategy(cells, listHerd, idHerds)
@@ -391,12 +416,13 @@ def update(frame):
         if (livingSpecies(listHerd) == 0):
             print(f'Match lasted {generationCounter} rounds')
             plt.close()
+            anim.event_source.stop()
 
         else:
             generationCounter += 1
-        idHerds, idPrides, listHerd, listPride = resetIndex(
-            idHerds, idPrides, listHerd, listPride)
-        updateScreen(cells)
+            idHerds, idPrides, listHerd, listPride = resetIndex(
+                idHerds, idPrides, listHerd, listPride)
+            updateScreen(cells, generationCounter)
 
 
 anim = FuncAnimation(fig, update, interval=500)

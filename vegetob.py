@@ -3,7 +3,7 @@ class Vegetob():
         self._density = density
 
     def grow(self):
-        self.density += 0.1
+        self.density += 0.25
 
     @property
     def density(self):

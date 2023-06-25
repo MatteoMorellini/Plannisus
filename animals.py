@@ -2,6 +2,7 @@ import random
 import numpy as np
 from groups import Herd, Pride
 from settings import yearLength
+import math
 
 
 class Animal():
@@ -27,9 +28,9 @@ class Animal():
         socialAttitude = np.random.normal(self.socialAttitude, 10)
         while (socialAttitude > 100 or socialAttitude < 0):
             socialAttitude = np.random.normal(self.socialAttitude, 10)
-        energy = int(np.random.normal(self.energy, 10))
+        energy = int(np.random.normal(self.energy-5, 10))
         while energy <= 0 or energy > 100:
-            energy = int(np.random.normal(self.energy, 10))
+            energy = int(np.random.normal(self.energy-5, 10))
         lifetime = random.randint(self.lifetime-1, self.lifetime+1)
         while lifetime < 1 or lifetime > 10:
             lifetime = random.randint(self.lifetime-1, self.lifetime+1)
@@ -60,15 +61,14 @@ class Erbast(Animal):
     def generateOffspring(self, idPride, livingSpecies, cells, listPride, idPrides):
         sizePride = len(listPride[idPride].memberList)/livingSpecies
         listPride[idPride].memberList.remove(self)
-        # si potrebbe pensare di fare questo in base alla popolazione nei 9 quadrati con centro
-        # quello del pride che stiamo esaminando, se la densità è troppo alta allora meno figli
-        if livingSpecies > 100:
-            successors = 1
-        elif livingSpecies > 20:
-            successors = round(2*(1-sizePride))
-        else:
-            successors = 2
-        for successor in range(0, successors):
+        subset = list(cells[listPride[idPride].y-1: listPride[idPride].y+2,
+                      listPride[idPride].x-1: listPride[idPride].x+2].flat)
+        subset.pop(4)
+        neighbors = sum(
+            1 for cell in subset if 'Prides' in cell and cell['Prides'])
+        successors = 1 if (
+            neighbors/8 >= 0.2 or (livingSpecies > 20 and sizePride > 0.25)) else 2
+        for _ in range(0, successors):
             socialAttitude, energy, lifetime = self.generateOffspringProperties()
             Erbast(listPride[idPride].x, listPride[idPride].y,
                    energy, lifetime, socialAttitude, cells, listPride, idPrides, idPride)
@@ -77,7 +77,6 @@ class Erbast(Animal):
 class Carviz(Animal):
     def __init__(self, x, y, energy, lifetime, socialAttitude, cells, listHerd, idHerds, idHerd=None, sight=1):
         super().__init__(energy, lifetime, socialAttitude, sight)
-        self.id = int(random.random()*1000)
         if idHerd in idHerds:
             listHerd[idHerd].memberList.append(self)
         else:
@@ -96,13 +95,15 @@ class Carviz(Animal):
     def generateOffspring(self, idHerd, livingSpecies, cells, listHerd, idHerds):
         sizeHerd = len(listHerd[idHerd].memberList)/livingSpecies
         listHerd[idHerd].memberList.remove(self)
-        if livingSpecies > 100:
-            successors = 1
-        elif livingSpecies > 20:
-            successors = round(2*(1-sizeHerd))
-        else:
-            successors = 2
-        for successor in range(0, successors):
+        subset = list(cells[listHerd[idHerd].y-1: listHerd[idHerd].y+2,
+                      listHerd[idHerd].x-1: listHerd[idHerd].x+2].flat)
+        subset.pop(4)
+        neighbors = sum(
+            1 for cell in subset if 'Herds' in cell and cell['Herds'])
+        successors = 1 if (
+            neighbors/8 >= 0.2 or (livingSpecies > 20 and sizeHerd >= 0.25)) else 2
+
+        for _ in range(0, successors):
             socialAttitude, energy, lifetime = self.generateOffspringProperties()
             Carviz(listHerd[idHerd].x, listHerd[idHerd].y,
                    energy, lifetime, socialAttitude, cells, listHerd, idHerds, idHerd)
