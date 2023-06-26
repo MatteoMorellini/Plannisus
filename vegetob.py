@@ -4,6 +4,9 @@ class Vegetob():
 
     def grow(self):
         self.density += 0.25
+    
+    def extremeGrow(self):
+        self.density += 10
 
     @property
     def density(self):

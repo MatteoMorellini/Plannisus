@@ -1,6 +1,7 @@
 from animals import Erbast, Carviz
 from settings import *
 from grid import createGrid
+from cloud import Cloud
 import math
 import os
 import numpy as np
@@ -13,6 +14,7 @@ idHerds = []
 listPride = []
 idPrides = []
 cells = createGrid(numCells)
+clouds = []
 firstGeneration = True
 running = False
 generationCounter = 0
@@ -467,9 +469,14 @@ def updateScreen(cells):
     global populationHistory
     populationPride = livingSpecies(listPride)
     populationHerd = livingSpecies(listHerd)
+
     for row, col in np.ndindex(cells.shape):
         cell = cells[row, col]
-        if (cell.get('type') == 'water'):
+        if any((row,col) in cloud.coords for cloud in clouds):
+            redIntensity = 204
+            greenIntensity = 229
+            blueIntensity = 255
+        elif (cell.get('type') == 'water'):
             if 'damaged' in cell:
                 if cell['damaged'] > 0:
                     cell['damaged'] -= 1
@@ -480,7 +487,7 @@ def updateScreen(cells):
                     blueIntensity = greenIntensity = redIntensity = 144
                     del cell['damaged']
             else:
-                continue
+                blueIntensity = greenIntensity = redIntensity = 144
         else:
             cellTracked = False
             redIntensity = greenIntensity = blueIntensity = 0
@@ -545,16 +552,25 @@ def update(frame):
     if running:
         for row, col in np.ndindex(cells.shape):
             if cells[row][col]['type'] == 'ground':
-                cells[row][col].get('grass').grow()
+                for cloud in clouds:
+                    if (row,col) in cloud.coords:
+                        cells[row][col].get('grass').extremeGrow()
+                        break
+                else:
+                    cells[row][col].get('grass').grow()
                 vegetobKiller(row, col)
         if random.random() < 0.005: #cataclysm
             xCell, yCell = math.floor(
                 random.random()*numCells), math.floor(random.random()*numCells)
             generateCataclysm(yCell, xCell)
+        for cloud in clouds:
+            cloud.move()
+            if len(cloud.coords) == 0:
+                clouds.remove(cloud)
         if random.random() < 0.02:
             xCell, yCell = math.floor(
                 random.random()*numCells), math.floor(random.random()*numCells)
-            generateRain(yCell, xCell)
+            clouds.append(Cloud(yCell, xCell))
         for member in filter(lambda pride: pride is not None, listPride):
             member.decideStrategy(cells, listPride, idPrides)
             if listPride[member.id] is not None:
@@ -580,8 +596,6 @@ def update(frame):
             idHerds, idPrides, listHerd, listPride = resetIndex(
                 idHerds, idPrides, listHerd, listPride)
             updateScreen(cells)
-
-
 anim = FuncAnimation(fig, update, interval=500)
 plt.show()
 plt.tight_layout()
