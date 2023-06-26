@@ -196,7 +196,7 @@ class Pride(Group):
                                 possibleNewCells.append([row-1, col-1])
                         break
 
-                    threshold = 80 if enemyNearby else sizeCell
+                    threshold = 70 if enemyNearby else sizeCell
                     if density/100*threshold > originalDensity and density > maxDensity:
                         maxDensity = density
                         xMov = x-1

@@ -1,12 +1,13 @@
-import random
-import numpy as np
-import os
-import math
-from grid import createGrid
-from settings import *
 from animals import Erbast, Carviz
-import matplotlib.pyplot as plt
+from settings import *
+from grid import createGrid
+import math
+import os
+import numpy as np
+import random
 from matplotlib.animation import FuncAnimation
+import matplotlib.pyplot as plt
+
 listHerd = []  # listHerd=[istance1, istance2 etc...]
 idHerds = []
 listPride = []
@@ -16,7 +17,13 @@ firstGeneration = True
 running = False
 generationCounter = 0
 populationHistory = {}
-toDisplay = 'magenta'
+saHistory = {}
+ltHistory = {}
+primaryColor = [1, 0, 1]
+secondaryColor = [155/255, 0, 155/255]
+meteorMode = False
+ax2Title = 'Total Population'
+ax3Title = 'General Stats'
 
 
 def resetIndex(idHerds, idPrides, listHerd, listPride):
@@ -110,6 +117,69 @@ def vegetobKiller(row, col):
             idPrides.remove(idPride)
         cells[row][col]['Prides'] = []
 
+def drawGraph2(populationPride, populationHerd):
+    ax2.cla()
+    ax2.set_title(ax2Title)
+
+    populationHistory[generationCounter] = ((populationPride, populationHerd))
+    if generationCounter > 100 and not meteorMode:
+        del populationHistory[generationCounter-100]
+    if primaryColor == [0, 0, 1]:
+        populationToDisplay = [generation[0]
+                               for generation in populationHistory.values()]
+    elif primaryColor == [1, 0, 0]:
+        populationToDisplay = [generation[1]
+            for generation in populationHistory.values()]
+    else:
+        populationToDisplay = [generation[0]+generation[1] for generation in populationHistory.values()]
+
+    ax2.plot(list(populationHistory.keys()),
+             populationToDisplay, color=primaryColor)
+
+def drawGraph3():
+    global ax3Display, ax4Display
+    saCarviz = saErbast = 0
+    ltCarviz = ltErbast = 0
+    for member in filter(lambda pride: pride is not None, listPride):
+        partialAvgSA = avgValue(member.memberList, 'socialAttitude')
+        partialAvgLF = avgValue(member.memberList, 'lifetime')
+        if saErbast == 0 or partialAvgSA == 0:
+            saErbast += partialAvgSA
+        else:
+            saErbast = (saErbast + partialAvgSA) / 2
+        if ltErbast == 0 or partialAvgLF == 0:
+            ltErbast += partialAvgLF
+        else:
+            ltErbast = (ltErbast + partialAvgLF) / 2
+    for member in filter(lambda herd: herd is not None, listHerd):
+        partialAvgSA = avgValue(member.memberList, 'socialAttitude')
+        partialAvgLF = avgValue(member.memberList, 'lifetime')
+        if saCarviz == 0 or partialAvgSA == 0:
+            saCarviz += partialAvgSA
+        else:
+            saCarviz = (saCarviz + partialAvgSA) / 2
+        if ltCarviz == 0 or partialAvgLF == 0:
+            ltCarviz += partialAvgLF
+        else:
+            ltCarviz = (ltCarviz + partialAvgLF) / 2
+    saHistory[generationCounter] = (int(saCarviz), int(saErbast))
+    ltHistory[generationCounter] = (int(ltCarviz), int(ltErbast))
+    if primaryColor == [0, 0, 1]:
+        ax3Display = [generation[1] for generation in saHistory.values()]
+        ax4Display = [generation[1] for generation in ltHistory.values()]
+    elif primaryColor == [1, 0, 0]:
+        ax3Display = [generation[0] for generation in saHistory.values()]
+        ax4Display = [generation[0] for generation in ltHistory.values()]
+    else:
+        ax3Display = [generation[0]+generation[1] for generation in saHistory.values()]
+        ax4Display = [generation[0]+generation[1] for generation in ltHistory.values()]
+    ax3.cla()
+    ax4.cla()
+    ax3.set_title(ax3Title)
+    ax3.plot(list(saHistory.keys()), ax3Display, color=secondaryColor)
+    ax3.set_ylabel('Average social attitude', color=secondaryColor)
+    ax4.set_ylabel('Average life expectancy', color=primaryColor)
+    ax4.plot(list(ltHistory.keys()), ax4Display, color=primaryColor)
 
 def joinPrides():
     for row, col in np.ndindex(cells.shape):
@@ -232,92 +302,132 @@ def generateAnimals(nErbast, nCarviz):
                socialAttitudeCreature, cells, listHerd, idHerds, idHerd)
 
 
+def generateCataclysm(yCell, xCell):
+    dimension = random.randint(1, 3)
+    carvizKilled = 0
+    erbastKilled = 0
+    for row in range(-dimension, dimension+1):
+        for col in range(-dimension, dimension+1):
+            if yCell+row > -1 and yCell+row < numCells and xCell+col > -1 and xCell+col < numCells:
+                if cells[yCell+row][xCell + col]['type'] == 'ground':
+                    for idHerd in cells[yCell+row][xCell + col]['Herds']:
+                        carvizKilled += len(listHerd[idHerd].memberList)
+                        listHerd[idHerd] = None
+                        idHerds.remove(idHerd)
+                    for idPride in cells[yCell+row][xCell + col]['Prides']:
+                        erbastKilled += len(listPride[idPride].memberList)
+                        listPride[idPride] = None
+                        idPrides.remove(idPride)
+                cells[yCell+row][xCell + col] = {'type': 'water',
+                                                 'damaged': 3, 'draw': cells[yCell + row][xCell+col]['draw']}
+    print(
+        f'A catastrophic meteorite impact has killed {carvizKilled} carviz and {erbastKilled} erbast')
+
+
 def buttonPressed(event):
-    if event.button == 1 and event.inaxes == ax1:  # Clic sinistro del mouse
-        # Ottenimento delle coordinate del punto cliccato
+    global meteorMode
+    if event.inaxes == ax1:
         x, y = event.xdata, event.ydata
-        cell = cells[math.floor(y*numCells)][math.floor(x*numCells)]
-        print('Cell of type:', cell.get('type'),
-              '\nCoordinates:', math.floor(y*numCells), math.floor(x*numCells))
-        if cell.get('type') == 'ground':
-            print('Vegetob density:', round(cell.get('grass').density))
-            if cell.get('Herds') != []:
-                herds = cell.get('Herds')
-                print('****************')
-                for herd in herds:
-                    print(f'Average values of the Herd:')
-                    avgEnergy = np.average(
-                        [member.energy for member in listHerd[herd].memberList])
-                    avgAge = np.average(
-                        [member.age for member in listHerd[herd].memberList])
-                    avgSA = np.average(
-                        [member.socialAttitude for member in listHerd[herd].memberList])
-                    avgLifetime = np.average(
-                        [member.lifetime for member in listHerd[herd].memberList])
-                    print(
-                        f'Number of components: {len(listHerd[herd].memberList)}, Energy: {math.ceil(avgEnergy)}, Age: {math.floor(avgAge)}, Social attitude: {math.ceil(avgSA)}, Lifetime: {math.ceil(yearLength*avgLifetime)}')
-            if cell.get('Prides') != []:
-                prides = cell.get('Prides')
-                print('________________')
-                for pride in prides:
-                    print(f'Values of the Erbast:')
-                    print(pride)
-                    avgEnergy = np.average(
-                        [member.energy for member in listPride[pride].memberList])
-                    avgAge = np.average(
-                        [member.age for member in listPride[pride].memberList])
-                    avgSA = np.average(
-                        [member.socialAttitude for member in listPride[pride].memberList])
-                    avgLifetime = np.average(
-                        [member.lifetime for member in listPride[pride].memberList])
-                    print(
-                        f'Number of components: {len(listPride[pride].memberList)}, Energy: {math.ceil(avgEnergy)}, Age: {math.floor(avgAge)}, Social attitude: {math.ceil(avgSA)}, Lifetime: {math.ceil(yearLength*avgLifetime)}')
-        print('------------------')
-    elif event.button == 3 and event.inaxes == ax1:
-        x, y = event.xdata, event.ydata
-        cell = cells[math.floor(y*numCells)][math.floor(x*numCells)]
-        if cell.get('type') == 'ground':
-            if cell.get('Herds') != []:
-                herds = cell.get('Herds')
-                for i, herd in enumerate(listHerd):
-                    if i in herds:
-                        herd.tracking = not herd.tracking
-                    else:
-                        herd.tracking = False
-            if cell.get('Prides') != []:
-                prides = cell.get('Prides')
-                for i, pride in enumerate(listPride):
-                    if i in prides:
-                        pride.tracking = not pride.tracking
-                    else:
-                        pride.tracking = False
+        xCell, yCell = math.floor(x*numCells), math.floor(y*numCells)
+        cell = cells[yCell][xCell]
+        if event.button == 1 and meteorMode == True:
+            generateCataclysm(yCell, xCell)
+            updateScreen(cells)
+            meteorMode = False
+        elif event.button == 1:  # Clic sinistro del mouse
+            # Ottenimento delle coordinate del punto cliccato
+            print('Cell of type:', cell.get('type'),
+                  '\nCoordinates:', yCell, xCell)
+            if cell.get('type') == 'ground':
+                print('Vegetob density:', round(cell.get('grass').density))
+                if cell.get('Herds') != []:
+                    herds = cell.get('Herds')
+                    print('****************')
+                    for herd in herds:
+                        print(f'Average values of the Herd:')
+                        avgEnergy = np.average(
+                            [member.energy for member in listHerd[herd].memberList])
+                        avgAge = np.average(
+                            [member.age for member in listHerd[herd].memberList])
+                        avgSA = np.average(
+                            [member.socialAttitude for member in listHerd[herd].memberList])
+                        avgLifetime = np.average(
+                            [member.lifetime for member in listHerd[herd].memberList])
+                        print(
+                            f'Number of components: {len(listHerd[herd].memberList)}, Energy: {math.ceil(avgEnergy)}, Age: {math.floor(avgAge)}, Social attitude: {math.ceil(avgSA)}, Lifetime: {math.ceil(yearLength*avgLifetime)}')
+                if cell.get('Prides') != []:
+                    prides = cell.get('Prides')
+                    print('________________')
+                    for pride in prides:
+                        print(f'Values of the Erbast:')
+                        print(pride)
+                        avgEnergy = np.average(
+                            [member.energy for member in listPride[pride].memberList])
+                        avgAge = np.average(
+                            [member.age for member in listPride[pride].memberList])
+                        avgSA = np.average(
+                            [member.socialAttitude for member in listPride[pride].memberList])
+                        avgLifetime = np.average(
+                            [member.lifetime for member in listPride[pride].memberList])
+                        print(
+                            f'Number of components: {len(listPride[pride].memberList)}, Energy: {math.ceil(avgEnergy)}, Age: {math.floor(avgAge)}, Social attitude: {math.ceil(avgSA)}, Lifetime: {math.ceil(yearLength*avgLifetime)}')
+            print('------------------')
+        elif event.button == 3:
+            if cell.get('type') == 'ground':
+                if cell.get('Herds') != []:
+                    herds = cell.get('Herds')
+                    for i, herd in enumerate(listHerd):
+                        if i in herds:
+                            herd.tracking = not herd.tracking
+                        else:
+                            herd.tracking = False
+                if cell.get('Prides') != []:
+                    prides = cell.get('Prides')
+                    for i, pride in enumerate(listPride):
+                        if i in prides:
+                            pride.tracking = not pride.tracking
+                        else:
+                            pride.tracking = False
 
 
 def keyPressed(event):
-    global running, interval, toDisplay
+    global running, interval, primaryColor, secondaryColor, meteorMode, ax2Title, ax3Title
     if (event.key == 'enter'):
-
-        if (generationCounter == 0):
-            os.system('cls' if os.name == 'nt' else 'clear')
-            print('++++++++++++++++++++++')
-            print('GAME STARTED')
-            print('++++++++++++++++++++++')
         running = True
+        meteorMode = False
     elif event.key == ' ':
         running = False
     elif event.key == 'e':
-        toDisplay = 'blue'
+        primaryColor = [0, 0, 1]
+        ax2Title = 'Erbast Population'
+        ax3Title = 'Erbast Stats'
+        secondaryColor = [0, 0, 155/255]
     elif event.key == 'c':
-        toDisplay = 'red'
+        primaryColor = [1, 0, 0]
+        ax2Title = 'Carviz Population'
+        ax3Title = 'Carviz Stats'
+        secondaryColor = [155/255, 0, 0]
     elif event.key == 'a':
-        toDisplay = 'magenta'
+        primaryColor = [1, 0, 1]
+        ax2Title = 'Total Population'
+        ax3Title = 'General Stats'
+        secondaryColor = [155/255, 0, 155/255]
+    elif event.key == 'm' and running == False:
+        meteorMode = not meteorMode
+        print('\u2604 \u26A0 METEOR MODE ACTIVATED \u26A0 \u2604')
 
-
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6))
 cid = fig.canvas.mpl_connect('button_press_event', buttonPressed)
 cid = fig.canvas.mpl_connect('key_press_event', keyPressed)
 fig.suptitle('Day: 0')
 ax1.axis('off')
+ax1.set_title('Map')
+ax2.set_title(ax2Title)
+ax3.set_title(ax3Title)
+ax4 = ax3.twinx()  # instantiate a second axes that shares the same x-axis
+
+def avgValue(group, value):
+    return sum(getattr(animal, value) for animal in group)/len(group) if len(group) > 0 else 0
 
 
 def createScreen(cells):
@@ -353,20 +463,31 @@ def createScreen(cells):
         ax1.add_patch(cells[row, col]['draw'])
 
 
-def updateScreen(cells, counter):
+def updateScreen(cells):
     global populationHistory
     populationPride = livingSpecies(listPride)
     populationHerd = livingSpecies(listHerd)
     for row, col in np.ndindex(cells.shape):
-        if (cells[row, col].get('type') == 'water'):
-            continue
+        cell = cells[row, col]
+        if (cell.get('type') == 'water'):
+            if 'damaged' in cell:
+                if cell['damaged'] > 0:
+                    cell['damaged'] -= 1
+                    redIntensity = 155 + int(100*random.random())
+                    greenIntensity = int(123*random.random())
+                    blueIntensity = 0
+                else:
+                    blueIntensity = greenIntensity = redIntensity = 144
+                    del cell['damaged']
+            else:
+                continue
         else:
             cellTracked = False
             redIntensity = greenIntensity = blueIntensity = 0
-            herds = cells[row][col].get('Herds')
-            prides = cells[row][col].get('Prides')
+            herds = cell.get('Herds')
+            prides = cell.get('Prides')
             if (len(herds) == 0 and len(prides) == 0):
-                vegetob = cells[row][col].get('grass')
+                vegetob = cell.get('grass')
                 greenIntensity = 255 if vegetob.density == 0 else 255 - \
                     155*(vegetob.density/100)
             else:
@@ -394,29 +515,20 @@ def updateScreen(cells, counter):
             cells[row, col]['draw'].set_facecolor(
                 (redIntensity/255, greenIntensity/255, blueIntensity/255, 1))
         elif cells[row][col]['tracked'] > 0 and not cellTracked:
-            cells[row][col]['tracked'] -= 1
             cells[row, col]['draw'].set_facecolor(
-                (1, 1, 0, 1))
+                (1, 1, (5-cells[row][col]['tracked'])*51/255, 1))
+            cells[row][col]['tracked'] -= 1
+            
         else:
             cells[row, col]['draw'].set_facecolor(
                 (redIntensity/255, greenIntensity/255, blueIntensity/255, 1))
 
-    ax2.cla()
-    populationHistory[generationCounter] = ((populationPride, populationHerd))
-    if generationCounter > 100:
-        del populationHistory[generationCounter-100]
-    if toDisplay == 'blue':
-        populationToDisplay = [generation[0]
-                               for generation in populationHistory.values()]
-    elif toDisplay == 'red':
-        populationToDisplay = [generation[1]
-                               for generation in populationHistory.values()]
-    else:
-        populationToDisplay = [generation[0]+generation[1]
-                               for generation in populationHistory.values()]
-    ax2.plot(list(populationHistory.keys()),
-             populationToDisplay, color=toDisplay)
+    drawGraph2(populationPride, populationHerd)
+    if generationCounter%10==0:
+        drawGraph3()
     fig.suptitle(f'Day: {generationCounter}')
+
+    
 
 
 def update(frame):
@@ -425,28 +537,39 @@ def update(frame):
         generateAnimals(10, 10)
         firstGeneration = False
         createScreen(cells)
+        if (generationCounter == 0):
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print('++++++++++++++++++++++')
+            print('GAME STARTED')
+            print('++++++++++++++++++++++')
     if running:
         for row, col in np.ndindex(cells.shape):
             if cells[row][col]['type'] == 'ground':
                 cells[row][col].get('grass').grow()
                 vegetobKiller(row, col)
-
+        if random.random() < 0.005: #cataclysm
+            xCell, yCell = math.floor(
+                random.random()*numCells), math.floor(random.random()*numCells)
+            generateCataclysm(yCell, xCell)
+        if random.random() < 0.02:
+            xCell, yCell = math.floor(
+                random.random()*numCells), math.floor(random.random()*numCells)
+            generateRain(yCell, xCell)
         for member in filter(lambda pride: pride is not None, listPride):
             member.decideStrategy(cells, listPride, idPrides)
+            if listPride[member.id] is not None:
+                member.agingGroup(livingSpecies(listPride), cells, listPride, idPrides)
         # se un Herd deve ancora muoversi e ha un Pride che costretto si è mosso nella sua cella, allora troverà xMov=yMov=0
         for member in filter(lambda herd: herd is not None, listHerd):
             member.decideStrategy(cells, listHerd, idHerds)
-
+            if listHerd[member.id] is not None:
+                member.agingGroup(livingSpecies(listHerd),
+                              cells, listHerd, idHerds)
+        
         joinPrides()
         handleHerds()
         hunt()
-
-        for member in filter(lambda pride: pride is not None, listPride):
-            member.agingGroup(livingSpecies(listPride),
-                              cells, listPride, idPrides)
-        for member in filter(lambda herd: herd is not None, listHerd):
-            member.agingGroup(livingSpecies(listHerd),
-                              cells, listHerd, idHerds)
+        
         if (livingSpecies(listHerd) == 0):
             print(f'Match lasted {generationCounter} rounds')
             plt.close()
@@ -456,8 +579,9 @@ def update(frame):
             generationCounter += 1
             idHerds, idPrides, listHerd, listPride = resetIndex(
                 idHerds, idPrides, listHerd, listPride)
-            updateScreen(cells, generationCounter)
+            updateScreen(cells)
 
 
 anim = FuncAnimation(fig, update, interval=500)
 plt.show()
+plt.tight_layout()
