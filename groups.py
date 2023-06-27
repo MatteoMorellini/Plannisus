@@ -6,13 +6,13 @@ from position import relativePosition
 
 
 class Group:
-    def __init__(self, idGroup, memberList, x, y, bornFromSeparation=True):
-        self.x = x
+    def __init__(self, y,x,memberList, bornFromSeparation=True):
         self.y = y
+        self.x = x
         self.memberList = memberList
-        self.id = idGroup
         self.bornFromSeparation = bornFromSeparation
         self.tracking = False
+        self.visited = False
 
     def movedType(self, yMov, xMov): pass
     def deadGroup(self, cells, listGroup, idGroups): pass
@@ -27,8 +27,8 @@ class Group:
             self.deadGroup(cells, listGroup, idGroups)
     '''
 
-    def move(self, yMov, xMov, cells, listGroup, idGroups):
-        stayingMembers = []
+    def move(self, yMov, xMov, cells):
+        #stayingMembers = []
         numeroRandom = random.random()*0.7
         for member in self.memberList:
             if member.energy/100 < numeroRandom:
@@ -36,7 +36,7 @@ class Group:
                 if member.energy == 0:
                     self.memberList.remove(member)
                     if (len(self.memberList) == 0):
-                        self.deadGroup(cells, listGroup, idGroups)
+                        self.deadGroup(cells)
             '''else:
                 #stayingMembers.append(member)
         if len(stayingMembers) > 0:
@@ -47,43 +47,37 @@ class Group:
             self.x += xMov
             self.y += yMov
 
-    def agingGroup(self, livingSpecies, cells, listGroup, idGroups):
+    def agingGroup(self, livingSpecies, cells):
+        populationChange = 0
         for member in self.memberList:
-            member.aging(self.id, livingSpecies, cells, listGroup, idGroups)
+            populationChange+=member.aging(self.memberList, livingSpecies, cells, self.y, self.x)
         for member in self.memberList:
             if member.energy <= 0:
                 self.memberList.remove(member)
+                populationChange-=1
                 if (len(self.memberList) == 0):
-                    self.deadGroup(cells, listGroup, idGroups)
-
+                    self.deadGroup(cells)
+        return populationChange
 
 class Herd(Group):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args):
         super().__init__(*args)
         self.lastVisitedCell = [0, 0]
-        cells = kwargs.pop('cells', None)
-        cells[self.y][self.x]['Herds'].append(self.id)
 
-    def deadGroup(self, cells, listHerd, idHerds):
-        listHerd[self.id] = None
-        cells[self.y][self.x]['Herds'].remove(self.id)
-        idHerds.remove(self.id)
+    def deadGroup(self, cells):
+        cells[self.y][self.x]['Herds'].remove(self)
 
     def movedType(self, yMov, xMov, cells):
-        cells[self.y][self.x]['Herds'].remove(self.id)
-        cells[self.y+yMov][self.x+xMov]['Herds'].append(self.id)
-
-    def groupInteractions(self, cells, listHerd, idHerds):
+        cells[self.y][self.x]['Herds'].remove(self)
+        cells[self.y+yMov][self.x+xMov]['Herds'].append(self)
+    def groupInteractions(self, cells):
         for member in self.memberList:
             threshold = np.random.normal(35, 5)
             if member.socialAttitude < threshold:
-                idHerd = max(len(listHerd), 0)
-                idHerds.append(idHerd)
-                listHerd.append(
-                    Herd(idHerd, [member], self.x, self.y, False, cells=cells))
+                cells[self.y][self.x]['Herds'].append(Herd(self.y, self.x,[member], False))
                 self.memberList.remove(member)
                 if (len(self.memberList) == 0):
-                    self.deadGroup(cells, listHerd, idHerds)
+                    self.deadGroup(cells)
 
     def feed(self, preyEnergy):
         while True:
@@ -99,7 +93,8 @@ class Herd(Group):
                 continue
             break
 
-    def decideStrategy(self, cells, listHerd, idHerds):
+    def decideStrategy(self, cells, y,x):
+        self.visited = True
         if self.bornFromSeparation:
             self.bornFromSeparation = False
             return
@@ -119,7 +114,7 @@ class Herd(Group):
             break
         else:
             if len(self.memberList) > 1:
-                self.groupInteractions(cells, listHerd, idHerds)
+                self.groupInteractions(cells)
             xRelative = relativePosition(self.x)
             yRelative = relativePosition(self.y)
             xMov = relativeMovement(xRelative)
@@ -138,32 +133,27 @@ class Herd(Group):
                 yMov = relativeMovement(yRelative)
 
         self.lastVisitedCell = [self.y, self.x]
-        self.move(yMov, xMov, cells, listHerd, idHerds)
+        self.move(yMov, xMov, cells)
 
 
 class Pride(Group):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args):
         super().__init__(*args)
-        cells = kwargs.pop('cells', None)
-        cells[self.y][self.x]['Prides'].append(self.id)
 
-    def deadGroup(self, cells, listPride, idPrides):
-        listPride[self.id] = None
-        cells[self.y][self.x]['Prides'].remove(self.id)
-        idPrides.remove(self.id)
+    def deadGroup(self, cells):
+        cells[self.y][self.x]['Prides'].remove(self)
 
-    def groupInteractions(self, possibleNewCells, cells, listPride, idPrides):
+    def groupInteractions(self, possibleNewCells, cells):
         for member in self.memberList:
             threshold = np.random.normal(35, 5)
             if member.socialAttitude < threshold:
-                idPride = max(len(listPride), 0)
-                idPrides.append(idPride)
                 newCell = random.choice(possibleNewCells)
-                listPride.append(Pride(
-                    idPride, [member], (self.x+newCell[1]), (self.y+newCell[0]), False, cells=cells))
+                cells[self.y+newCell[0], self.x+newCell[1]]['Prides'].append(Pride(
+                    self.y+newCell[0], self.x+newCell[1],[member],  False))
                 self.memberList.remove(member)
 
-    def decideStrategy(self, cells, listPride, idPrides):
+    def decideStrategy(self, cells, modifiedCells, y,x):
+        self.visited = True
         if self.bornFromSeparation:
             self.bornFromSeparation = False
             return
@@ -182,7 +172,7 @@ class Pride(Group):
                 if subset[y][x]['type'] == 'ground':
                     density = subset[y][x].get('grass').density
                     possibleNewCells.append([y-1, x-1])
-                    if subset[y][x]['Herds'] != [] and self.id not in subset[y][x]['Prides']:
+                    if subset[y][x]['Herds'] != [] and self not in subset[y][x]['Prides']:
                         enemyNearby = True
                         possibleNewCells = []
                         # aggiungi la possibilità che quando deve scappare dal predatore, se più celle sono safe allora il gruppo si può dividere
@@ -207,12 +197,11 @@ class Pride(Group):
         if (xMov != 0 or yMov != 0):
             shouldMove = True
         if len(self.memberList) > 1 and len(possibleNewCells) > 0:
-            self.groupInteractions(
-                possibleNewCells, cells, listPride, idPrides)
+            self.groupInteractions(possibleNewCells, modifiedCells)
         if (not shouldMove):
-            self.graze(cells)
+            self.graze(modifiedCells)
         else:
-            self.move(yMov, xMov, cells, listPride, idPrides)
+            self.move(yMov, xMov, modifiedCells)
 
     def graze(self, cells):
         self.memberList.sort(key=lambda x: x.energy)
@@ -230,5 +219,5 @@ class Pride(Group):
             break
 
     def movedType(self, yMov, xMov, cells):
-        cells[self.y][self.x]['Prides'].remove(self.id)
-        cells[self.y+yMov][self.x+xMov]['Prides'].append(self.id)
+        cells[self.y][self.x]['Prides'].remove(self)
+        cells[self.y+yMov][self.x+xMov]['Prides'].append(self)

@@ -1,5 +1,5 @@
 dimensions = (600, 600)
-sizeCell = 20
+sizeCell = 30
 percentageTowardsCentre = sizeCell / 100
 numCells = int(dimensions[0]/sizeCell)
 rgbConfiguration = True if sizeCell < 20 else False

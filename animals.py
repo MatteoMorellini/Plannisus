@@ -38,31 +38,27 @@ class Animal():
 
 
 class Erbast(Animal):
-    def __init__(self, x, y, energy, lifetime, socialAttitude, cells, listPride, idPrides, idPride=None, sight=1):
+    def __init__(self, y,x, energy, lifetime, socialAttitude, cells, sight=1):
         super().__init__(energy, lifetime, socialAttitude, sight)
-        if idPride in idPrides:
-            listPride[idPride].memberList.append(self)
+        if cells[y,x]['Prides'] != []:
+            cells[y,x]['Prides'][0].memberList.append(self)
         else:
-            idPride = idPrides[-1]+1 if len(idPrides) > 0 else 0
-            idPrides.append(idPride)
-            listPride.append(Pride(idPride, [self], x, y, cells=cells))
-
+            cells[y][x]['Prides'].append(Pride(y, x,[self]))
     def grazing(self):
         self.energy += 1
 
-    def aging(self, idPride, livingSpecies, cells, listPride, idPrides):
+    def aging(self, memberList, livingSpecies, cells, y, x):
         self.age += 1
         if self.age % yearLength == 0:
             self.energy -= 1
         if self.age >= self.lifetime*yearLength:
-            self.generateOffspring(
-                idPride, livingSpecies, cells, listPride, idPrides)
+            return self.generateOffspring(memberList, livingSpecies, cells, y ,x)
+        return 0
 
-    def generateOffspring(self, idPride, livingSpecies, cells, listPride, idPrides):
-        sizePride = len(listPride[idPride].memberList)/livingSpecies
-        listPride[idPride].memberList.remove(self)
-        subset = list(cells[listPride[idPride].y-1: listPride[idPride].y+2,
-                      listPride[idPride].x-1: listPride[idPride].x+2].flat)
+    def generateOffspring(self, memberList, livingSpecies, cells, y,x):
+        sizePride = len(memberList)/livingSpecies
+        memberList.remove(self)
+        subset = list(cells[y-1: y+2, x-1: x+2].flat)
         subset.pop(4)
         neighbors = sum(
             1 for cell in subset if 'Prides' in cell and cell['Prides'])
@@ -70,40 +66,35 @@ class Erbast(Animal):
             neighbors/8 >= 0.2 or (livingSpecies > 20 and sizePride > 0.25)) else 2
         for _ in range(0, successors):
             socialAttitude, energy, lifetime = self.generateOffspringProperties()
-            Erbast(listPride[idPride].x, listPride[idPride].y,
-                   energy, lifetime, socialAttitude, cells, listPride, idPrides, idPride)
-
+            Erbast(y,x, energy, lifetime, socialAttitude, cells)
+        return successors-1
 
 class Carviz(Animal):
-    def __init__(self, x, y, energy, lifetime, socialAttitude, cells, listHerd, idHerds, idHerd=None, sight=1):
+    def __init__(self, y,x, energy, lifetime, socialAttitude, cells, sight=1):
         super().__init__(energy, lifetime, socialAttitude, sight)
-        if idHerd in idHerds:
-            listHerd[idHerd].memberList.append(self)
+        if cells[y,x]['Herds'] != []:
+            cells[y,x]['Herds'][0].memberList.append(self)
         else:
-            idHerd = idHerds[-1]+1 if len(idHerds) > 0 else 0
-            idHerds.append(idHerd)
-            listHerd.append(Herd(idHerd, [self], x, y, cells=cells))
+            cells[y][x]['Herds'].append(Herd(y,x,[self]))
 
-    def aging(self, idHerd, livingSpecies, cells, listHerd, idHerds):
+    def aging(self, memberList, livingSpecies, cells, y ,x):
         self.age += 1
         if self.age % yearLength == 0:
             self.energy -= 1
         if self.age >= self.lifetime*yearLength:
-            self.generateOffspring(idHerd, livingSpecies,
-                                   cells, listHerd, idHerds)
+            return self.generateOffspring(memberList, livingSpecies,cells, y, x)
+        return 0
 
-    def generateOffspring(self, idHerd, livingSpecies, cells, listHerd, idHerds):
-        sizeHerd = len(listHerd[idHerd].memberList)/livingSpecies
-        listHerd[idHerd].memberList.remove(self)
-        subset = list(cells[listHerd[idHerd].y-1: listHerd[idHerd].y+2,
-                      listHerd[idHerd].x-1: listHerd[idHerd].x+2].flat)
+    def generateOffspring(self, memberList, livingSpecies, cells, y,x):
+        sizeHerd = len(memberList)/livingSpecies
+        memberList.remove(self)
+        subset = list(cells[y-1: y+2,x-1:x+2].flat)
         subset.pop(4)
         neighbors = sum(
             1 for cell in subset if 'Herds' in cell and cell['Herds'])
         successors = 1 if (
             neighbors/8 >= 0.2 or (livingSpecies > 20 and sizeHerd >= 0.25)) else 2
-
         for _ in range(0, successors):
             socialAttitude, energy, lifetime = self.generateOffspringProperties()
-            Carviz(listHerd[idHerd].x, listHerd[idHerd].y,
-                   energy, lifetime, socialAttitude, cells, listHerd, idHerds, idHerd)
+            Carviz(y,x, energy, lifetime, socialAttitude, cells)
+        return successors-1
